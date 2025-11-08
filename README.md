@@ -1,51 +1,51 @@
-# Sales API - Minimal Version
+# Sales API - Minimal + PostgreSQL
 
-Dead simple FastAPI server with ZERO dependencies.
+Simple FastAPI server with PostgreSQL for storing conversations.
 
 ## What This Has
 
 ✅ FastAPI server
+✅ PostgreSQL database
+✅ Conversation storage
+✅ Message history
 ✅ Health check at `/health`
-✅ Root endpoint at `/`
-✅ Test endpoint at `/api/sales/message`
-✅ Handles Railway's PORT variable
+✅ CRUD endpoints for conversations
 
-## What This DOESN'T Have
+## Environment Variables
 
-❌ No PostgreSQL
-❌ No Redis
-❌ No Qdrant
-❌ No MCP
-❌ No AI/LLM
-❌ No database models
-❌ No sessions
-❌ No authentication
+```bash
+DATABASE_URL=postgresql+asyncpg://user:pass@postgres-sales.railway.internal:5432/railway
+```
+
+## Endpoints
+
+- `GET /health` - Health check
+- `GET /` - Service info
+- `POST /api/sales/conversations` - Create conversation
+- `GET /api/sales/conversations/{session_id}` - Get conversation
+- `POST /api/sales/message` - Send message (saves to DB)
 
 ## Test It
 
 ```bash
-# Local
-python main.py
-
-# Test
-curl http://localhost:8080/health
-curl http://localhost:8080/
-curl -X POST http://localhost:8080/api/sales/message \
+# Create conversation
+curl -X POST https://sales-api-production-3088.up.railway.app/api/sales/conversations \
   -H "Content-Type: application/json" \
-  -d '{"message": "hello", "session_id": "test-123"}'
+  -d '{"session_id":"test-123","email":"test@example.com","name":"John"}'
+
+# Send message
+curl -X POST https://sales-api-production-3088.up.railway.app/api/sales/message \
+  -H "Content-Type: application/json" \
+  -d '{"session_id":"test-123","message":"I need help with sales"}'
+
+# Get conversation
+curl https://sales-api-production-3088.up.railway.app/api/sales/conversations/test-123
 ```
 
-## Deploy to Railway
+## Next Steps
 
-1. Push this folder to GitHub repo: `sales-api-minimal`
-2. In Railway: New Service → GitHub → `sales-api-minimal`
-3. That's it. No environment variables needed.
-
-## Add Features Later
-
-Once this works, we'll add ONE thing at a time:
-1. PostgreSQL
-2. Redis
-3. AI responses
-4. MCP tools
-5. Qdrant search
+- ✅ PostgreSQL (DONE)
+- ⏳ Redis for sessions
+- ⏳ AI responses with OpenAI
+- ⏳ MCP tools integration
+- ⏳ Qdrant vector search
