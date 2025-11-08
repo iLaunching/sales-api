@@ -19,6 +19,11 @@ FastAPI server with PostgreSQL, Redis caching, and AI-powered sales conversation
 DATABASE_URL=postgresql://user:pass@host:port/db
 REDIS_URL=redis://host:port
 LLM_GATEWAY_URL=https://ilaunching-llm-server-production.up.railway.app
+
+# Optional LLM Configuration
+LLM_MODEL=gpt-4o-mini  # Model name (gpt-4o-mini, gpt-4o, claude-3-5-sonnet-20241022, etc)
+LLM_TEMPERATURE=0.7     # Creativity (0.0-1.0)
+LLM_MAX_TOKENS=500      # Max response length
 ```
 
 ## Endpoints

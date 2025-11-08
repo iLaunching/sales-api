@@ -16,6 +16,11 @@ if not LLM_GATEWAY_URL:
     logger.error("LLM_GATEWAY_URL environment variable not set!")
     raise ValueError("LLM_GATEWAY_URL is required")
 
+# Model configuration from environment
+DEFAULT_MODEL = os.getenv("LLM_MODEL", "gpt-4o-mini")
+DEFAULT_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.7"))
+DEFAULT_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "500"))
+
 # Sales-specific system prompt
 SALES_SYSTEM_PROMPT = """You are an expert B2B sales assistant specializing in the iLaunching platform. 
 
@@ -122,12 +127,12 @@ async def get_sales_response(
         "content": user_message
     })
     
-    # Get AI response
+    # Get AI response with configured defaults
     response = await get_ai_response(
         messages=messages,
-        model="gpt-4o-mini",  # Fast and cheap for sales conversations
-        temperature=0.7,
-        max_tokens=500
+        model=DEFAULT_MODEL,
+        temperature=DEFAULT_TEMPERATURE,
+        max_tokens=DEFAULT_MAX_TOKENS
     )
     
     # Fallback if LLM fails
