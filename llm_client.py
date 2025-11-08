@@ -10,10 +10,11 @@ from typing import List, Dict, Optional
 logger = logging.getLogger(__name__)
 
 # LLM Gateway URL from environment
-LLM_GATEWAY_URL = os.getenv(
-    "LLM_GATEWAY_URL",
-    "https://ilaunching-llm-server-production.up.railway.app"
-)
+LLM_GATEWAY_URL = os.getenv("LLM_GATEWAY_URL")
+
+if not LLM_GATEWAY_URL:
+    logger.error("LLM_GATEWAY_URL environment variable not set!")
+    raise ValueError("LLM_GATEWAY_URL is required")
 
 # Sales-specific system prompt
 SALES_SYSTEM_PROMPT = """You are an expert B2B sales assistant specializing in the iLaunching platform. 
