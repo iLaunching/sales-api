@@ -5,6 +5,7 @@ Loads settings from environment variables
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List
+import os
 
 
 class Settings(BaseSettings):
@@ -12,7 +13,7 @@ class Settings(BaseSettings):
     
     # Application
     DEBUG: bool = False
-    PORT: int = 8080
+    PORT: int = int(os.getenv("PORT", "8080"))
     ENVIRONMENT: str = "production"
     
     # CORS
@@ -27,10 +28,11 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
     REDIS_SESSION_TTL: int = 86400  # 24 hours
     
-    # Qdrant Vector Database
-    QDRANT_URL: str
+    # Qdrant Vector Database (Optional - for Phase 1)
+    QDRANT_URL: str = ""
     QDRANT_API_KEY: str = ""
     QDRANT_COLLECTION_NAME: str = "sales_knowledge"
+    QDRANT_ENABLED: bool = False  # Set to True when Qdrant is configured
     
     # LLM Configuration
     OPENAI_API_KEY: str = ""
@@ -39,12 +41,13 @@ class Settings(BaseSettings):
     TEMPERATURE: float = 0.7
     MAX_TOKENS: int = 1000
     
-    # MCP Server
-    MCP_SERVER_URL: str = "http://localhost:8081"
+    # MCP Server (Optional - for Phase 1)
+    MCP_SERVER_URL: str = ""
     MCP_SERVER_TIMEOUT: int = 30
+    MCP_ENABLED: bool = False  # Set to True when MCP server is configured
     
-    # Auth API Integration
-    AUTH_API_URL: str = "http://localhost:8000"
+    # Auth API Integration (Optional - for Phase 3)
+    AUTH_API_URL: str = ""
     AUTH_API_KEY: str = ""
     
     # Lead Qualification

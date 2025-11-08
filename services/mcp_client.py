@@ -23,16 +23,26 @@ class MCPClient:
     - Feature descriptions
     - Objection handling scripts
     - Value calculators
+    
+    Phase 0: Returns placeholder data
+    Phase 1: Will connect to actual MCP server when MCP_ENABLED=True
     """
     
     def __init__(self):
-        self.base_url = settings.MCP_SERVER_URL
+        self.enabled = settings.MCP_ENABLED
+        self.base_url = settings.MCP_SERVER_URL if settings.MCP_SERVER_URL else None
         self.timeout = settings.MCP_SERVER_TIMEOUT
-        self.client = httpx.AsyncClient(timeout=self.timeout)
+        self.client = httpx.AsyncClient(timeout=self.timeout) if self.enabled else None
+        
+        if not self.enabled:
+            logger.info("MCP client running in placeholder mode (MCP_ENABLED=False)")
+        else:
+            logger.info(f"MCP client connecting to {self.base_url}")
     
     async def close(self):
         """Close the HTTP client"""
-        await self.client.aclose()
+        if self.client:
+            await self.client.aclose()
     
     async def get_pitch_template(self, industry: str, pain_points: List[str]) -> Optional[Dict[str, Any]]:
         """
