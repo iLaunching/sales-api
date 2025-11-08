@@ -1,9 +1,6 @@
 """
 MCP (Model Context Protocol) Client for Sales API
-Provides access to pre-built sales templates, success stories, and tools
-
-NOTE: This is a placeholder implementation. The actual MCP integration
-will be added in Phase 1 of the roadmap.
+Provides access to sales tools and actions via MCP server
 """
 
 import logging
@@ -17,15 +14,18 @@ logger = logging.getLogger(__name__)
 
 class MCPClient:
     """
-    Client for interacting with MCP server to retrieve:
+    Client for Model Context Protocol server
+    
+    Retrieval Tools:
     - Pitch templates
     - Success stories
-    - Feature descriptions
-    - Objection handling scripts
-    - Value calculators
+    - Feature matching
+    - Objection handling
+    - Value calculation
     
-    Phase 0: Returns placeholder data
-    Phase 1: Will connect to actual MCP server when MCP_ENABLED=True
+    Action Tools:
+    - Email drafting
+    - Meeting scheduling
     """
     
     def __init__(self):
@@ -44,136 +44,303 @@ class MCPClient:
         if self.client:
             await self.client.aclose()
     
-    async def get_pitch_template(self, industry: str, pain_points: List[str]) -> Optional[Dict[str, Any]]:
+    # ============= RETRIEVAL TOOLS =============
+    
+    async def get_pitch_template(
+        self,
+        industry: str,
+        pain_points: List[str],
+        company_size: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
         """
-        Retrieve a pitch template tailored to industry and pain points
+        Retrieve personalized pitch template
         
-        Args:
-            industry: User's industry/sector
-            pain_points: List of identified pain points
-            
         Returns:
-            Dict with template content or None
-        """
-        try:
-            # TODO: Implement actual MCP call
-            # response = await self.client.post(
-            #     f"{self.base_url}/tools/pitch_template_retriever",
-            #     json={"industry": industry, "pain_points": pain_points}
-            # )
-            # return response.json()
-            
-            logger.warning("MCP client not implemented yet - returning placeholder")
-            return {
-                "template": f"Based on your work in {industry}, I can see how our platform addresses your challenges.",
-                "key_features": ["AI-powered analysis", "Real-time insights", "Automated workflows"],
-                "call_to_action": "Let me show you how this works for your specific situation."
+            {
+                "template": {...},  # opener, pain_point_response, value_prop, cta
+                "industry": str,
+                "confidence": float,
+                "suggestions": List[str]
             }
+        """
+        if not self.enabled or not self.client:
+            logger.warning("MCP disabled - returning placeholder pitch")
+            return {
+                "template": {
+                    "opener": f"Based on your work in {industry}, I can see how our platform addresses your challenges.",
+                    "value_prop": "We help teams like yours make faster, data-driven decisions.",
+                    "cta": "Want to see how this works for your situation?"
+                },
+                "confidence": 0.5
+            }
+        
+        try:
+            response = await self.client.post(
+                f"{self.base_url}/tools/pitch_template_retriever",
+                json={
+                    "industry": industry,
+                    "pain_points": pain_points,
+                    "company_size": company_size
+                }
+            )
+            response.raise_for_status()
+            return response.json()
         except Exception as e:
             logger.error(f"Error fetching pitch template: {e}")
             return None
     
-    async def get_success_story(self, industry: str, company_size: str = None) -> Optional[Dict[str, Any]]:
+    async def get_success_story(
+        self,
+        industry: str,
+        company_size: Optional[str] = None,
+        pain_points: Optional[List[str]] = None
+    ) -> Optional[Dict[str, Any]]:
         """
-        Find relevant success story for similar customer
+        Find relevant success story
         
-        Args:
-            industry: User's industry
-            company_size: Size of user's company
-            
         Returns:
-            Success story dict or None
-        """
-        try:
-            # TODO: Implement actual MCP call
-            logger.warning("MCP client not implemented yet - returning placeholder")
-            return {
-                "company": f"Similar {industry} company",
-                "challenge": "Struggled with manual analysis and slow insights",
-                "solution": "Implemented our AI platform",
-                "results": "3x faster decision making, 40% cost reduction"
+            {
+                "success_story": {
+                    "company": str,
+                    "challenge": str,
+                    "solution": str,
+                    "results": {...}
+                },
+                "relevance_score": float
             }
+        """
+        if not self.enabled or not self.client:
+            logger.warning("MCP disabled - returning placeholder story")
+            return {
+                "success_story": {
+                    "company": f"Similar {industry} company",
+                    "challenge": "Manual analysis taking too long",
+                    "results": {"time_saved": "20 hours/week"}
+                }
+            }
+        
+        try:
+            response = await self.client.post(
+                f"{self.base_url}/tools/success_story_finder",
+                json={
+                    "industry": industry,
+                    "company_size": company_size,
+                    "pain_points": pain_points or []
+                }
+            )
+            response.raise_for_status()
+            return response.json()
         except Exception as e:
             logger.error(f"Error fetching success story: {e}")
             return None
     
-    async def match_features(self, pain_points: List[str], goals: List[str]) -> List[Dict[str, Any]]:
+    async def match_features(
+        self,
+        pain_points: List[str],
+        goals: List[str]
+    ) -> List[Dict[str, Any]]:
         """
-        Match user needs to platform features
+        Match platform features to user needs
         
-        Args:
-            pain_points: User's challenges
-            goals: User's objectives
-            
         Returns:
-            List of matched features with descriptions
+            List of {
+                "name": str,
+                "description": str,
+                "benefits": List[str],
+                "relevance_score": float
+            }
         """
-        try:
-            # TODO: Implement actual MCP call
-            logger.warning("MCP client not implemented yet - returning placeholder")
+        if not self.enabled or not self.client:
+            logger.warning("MCP disabled - returning placeholder features")
             return [
                 {
-                    "feature": "AI Market Analysis",
-                    "description": "Automated competitor and market insights",
-                    "relevance": "Addresses your need for faster market research"
-                },
-                {
-                    "feature": "Real-time Streaming",
-                    "description": "See AI thinking in real-time as it analyzes",
-                    "relevance": "Makes complex analysis transparent and interactive"
+                    "name": "AI Market Analysis",
+                    "description": "Automated insights",
+                    "relevance_score": 0.8
                 }
             ]
+        
+        try:
+            response = await self.client.post(
+                f"{self.base_url}/tools/feature_matcher",
+                json={
+                    "pain_points": pain_points,
+                    "goals": goals
+                }
+            )
+            response.raise_for_status()
+            return response.json().get("matched_features", [])
         except Exception as e:
             logger.error(f"Error matching features: {e}")
             return []
     
-    async def handle_objection(self, objection_type: str, context: Dict[str, Any]) -> Optional[str]:
+    async def handle_objection(
+        self,
+        objection_type: str,
+        context: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
         """
-        Get objection handling script
+        Get objection handling response
         
         Args:
-            objection_type: Type of objection (price, timing, features, etc.)
-            context: User context for personalization
-            
+            objection_type: "price", "timing", "features", "competitors", "trust"
+            context: Additional context
+        
         Returns:
-            Response script or None
-        """
-        try:
-            # TODO: Implement actual MCP call
-            logger.warning("MCP client not implemented yet - returning placeholder")
-            
-            objection_responses = {
-                "price": "I understand cost is important. Let me show you the ROI our customers see...",
-                "timing": "I hear you on timing. What if we could get you up and running in just a few days?",
-                "features": "Great question about features. Let me walk you through exactly what you need...",
+            {
+                "response": str,
+                "follow_up_question": str,
+                "proof_points": List[str]
             }
-            
-            return objection_responses.get(objection_type, "I understand your concern. Let's discuss that...")
+        """
+        if not self.enabled or not self.client:
+            logger.warning("MCP disabled - returning placeholder objection response")
+            return {
+                "response": "I understand your concern. Let me address that...",
+                "follow_up_question": "What would help clarify this for you?"
+            }
+        
+        try:
+            response = await self.client.post(
+                f"{self.base_url}/tools/objection_handler",
+                json={
+                    "objection_type": objection_type,
+                    "context": context
+                }
+            )
+            response.raise_for_status()
+            return response.json()
         except Exception as e:
             logger.error(f"Error handling objection: {e}")
             return None
     
-    async def calculate_value(self, user_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def calculate_value(
+        self,
+        company_size: str,
+        industry: str,
+        current_process: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
         """
-        Calculate estimated ROI/value for user
+        Calculate ROI and value proposition
         
-        Args:
-            user_data: User's company size, current process, etc.
-            
         Returns:
-            Value calculation or None
-        """
-        try:
-            # TODO: Implement actual MCP call
-            logger.warning("MCP client not implemented yet - returning placeholder")
-            return {
-                "time_saved": "20 hours per week",
-                "cost_reduction": "30-40%",
-                "roi_timeline": "3-6 months",
-                "annual_value": "$50,000+"
+            {
+                "time_savings": {...},
+                "financial_impact": {...},
+                "roi": {...}
             }
+        """
+        if not self.enabled or not self.client:
+            logger.warning("MCP disabled - returning placeholder value calc")
+            return {
+                "time_savings": {"weekly_hours": 15},
+                "financial_impact": {"annual": "$50,000"},
+                "roi": {"payback_period": "3 months"}
+            }
+        
+        try:
+            response = await self.client.post(
+                f"{self.base_url}/tools/value_calculator",
+                json={
+                    "company_size": company_size,
+                    "industry": industry,
+                    "current_process": current_process
+                }
+            )
+            response.raise_for_status()
+            return response.json()
         except Exception as e:
             logger.error(f"Error calculating value: {e}")
+            return None
+    
+    # ============= ACTION TOOLS =============
+    
+    async def draft_email(
+        self,
+        prospect_name: str,
+        company: str,
+        pain_points: List[str],
+        template_type: str = "follow_up"
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Generate personalized email draft
+        
+        Args:
+            prospect_name: Name of prospect
+            company: Company name
+            pain_points: Identified pain points
+            template_type: "follow_up", "introduction", "demo_invite"
+        
+        Returns:
+            {
+                "subject": str,
+                "body": str,
+                "tone": str,
+                "best_send_time": str
+            }
+        """
+        if not self.enabled or not self.client:
+            logger.warning("MCP disabled - cannot draft email")
+            return None
+        
+        try:
+            response = await self.client.post(
+                f"{self.base_url}/tools/draft_email",
+                json={
+                    "prospect_name": prospect_name,
+                    "company": company,
+                    "pain_points": pain_points,
+                    "template_type": template_type
+                }
+            )
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            logger.error(f"Error drafting email: {e}")
+            return None
+    
+    async def schedule_meeting(
+        self,
+        prospect_email: str,
+        meeting_type: str,
+        timezone: str,
+        preferred_times: List[str]
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Generate meeting scheduling message
+        
+        Args:
+            prospect_email: Email address
+            meeting_type: "discovery", "demo", "closing"
+            timezone: Timezone
+            preferred_times: List of time options
+        
+        Returns:
+            {
+                "meeting_type": str,
+                "duration": str,
+                "agenda": List[str],
+                "scheduling_message": str
+            }
+        """
+        if not self.enabled or not self.client:
+            logger.warning("MCP disabled - cannot schedule meeting")
+            return None
+        
+        try:
+            response = await self.client.post(
+                f"{self.base_url}/tools/schedule_meeting",
+                json={
+                    "prospect_email": prospect_email,
+                    "meeting_type": meeting_type,
+                    "timezone": timezone,
+                    "preferred_times": preferred_times
+                }
+            )
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            logger.error(f"Error scheduling meeting: {e}")
             return None
 
 import logging
