@@ -19,12 +19,12 @@ class Settings(BaseSettings):
     CORS_ORIGINS: List[str] = ["http://localhost:3000"]
     
     # Database
-    DATABASE_URL: str
+    DATABASE_URL: str = "postgresql+asyncpg://user:pass@localhost:5432/sales_db"
     DATABASE_POOL_SIZE: int = 20
     DATABASE_MAX_OVERFLOW: int = 10
     
     # Redis
-    REDIS_URL: str
+    REDIS_URL: str = "redis://localhost:6379/0"
     REDIS_SESSION_TTL: int = 86400  # 24 hours
     
     # Qdrant Vector Database
@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     MCP_SERVER_TIMEOUT: int = 30
     
     # Auth API Integration
-    AUTH_API_URL: str
+    AUTH_API_URL: str = "http://localhost:8000"
     AUTH_API_KEY: str = ""
     
     # Lead Qualification

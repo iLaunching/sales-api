@@ -24,10 +24,17 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Lifecycle manager for database connections"""
     logger.info("Starting Sales API service...")
-    await init_db()
+    try:
+        await init_db()
+        logger.info("Database initialized successfully")
+    except Exception as e:
+        logger.warning(f"Database initialization failed: {e}. Running without database.")
     yield
     logger.info("Shutting down Sales API service...")
-    await close_db()
+    try:
+        await close_db()
+    except Exception as e:
+        logger.warning(f"Database shutdown warning: {e}")
 
 
 # Initialize FastAPI app
