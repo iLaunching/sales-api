@@ -1,5 +1,5 @@
 """
-Minimal Sales API - With PostgreSQL + Redis
+Minimal Sales API - With PostgreSQL + Redis + AI
 """
 
 from fastapi import FastAPI, Depends, HTTPException
@@ -13,6 +13,7 @@ import logging
 from database import init_db, close_db, get_db
 from models import Conversation
 from redis_client import close_redis, cache_conversation, get_cached_conversation, invalidate_cache
+from llm_client import get_sales_response
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -34,8 +35,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Sales API - Minimal + PostgreSQL + Redis",
-    version="1.2.0",
+    title="Sales API - PostgreSQL + Redis + AI",
+    version="1.3.0",
     lifespan=lifespan
 )
 
@@ -53,9 +54,9 @@ app.add_middleware(
 async def root():
     return {
         "service": "Sales API",
-        "version": "1.2.0",
+        "version": "1.3.0",
         "status": "running",
-        "features": ["PostgreSQL", "Redis", "Conversations", "Caching"]
+        "features": ["PostgreSQL", "Redis", "AI", "Conversations", "Caching"]
     }
 
 
@@ -161,8 +162,18 @@ async def send_message(data: dict, db: AsyncSession = Depends(get_db)):
             "timestamp": datetime.now().isoformat()
         })
         
-        # Simple echo response
-        response_text = f"Thanks for your message! You said: {message_text}"
+        # Get AI response from LLM Gateway
+        response_text = await get_sales_response(
+            conversation_history=messages,
+            user_message=message_text,
+            context={
+                "email": conversation.email,
+                "name": conversation.name,
+                "company": conversation.company,
+                "stage": conversation.current_stage
+            }
+        )
+        
         messages.append({
             "role": "assistant",
             "content": response_text,
@@ -170,7 +181,7 @@ async def send_message(data: dict, db: AsyncSession = Depends(get_db)):
         })
         
         conversation.messages = messages
-        conversation.messages = messages
+        conversation.updated_at = datetime.now()
         
         await db.commit()
         await db.refresh(conversation)

@@ -1,0 +1,137 @@
+"""
+LLM Gateway Client - Calls the LLM Gateway for AI responses
+"""
+
+import httpx
+import os
+import logging
+from typing import List, Dict, Optional
+
+logger = logging.getLogger(__name__)
+
+# LLM Gateway URL from environment
+LLM_GATEWAY_URL = os.getenv(
+    "LLM_GATEWAY_URL",
+    "https://ilaunching-llm-server-production.up.railway.app"
+)
+
+# Sales-specific system prompt
+SALES_SYSTEM_PROMPT = """You are an expert B2B sales assistant specializing in the iLaunching platform. 
+
+Your role is to:
+- Qualify leads by understanding their business needs, pain points, and goals
+- Educate prospects about iLaunching's AI-powered platform features
+- Handle objections professionally and provide value-focused responses
+- Guide conversations toward scheduling demos for high-quality leads
+- Ask discovery questions to understand: company size, industry, current tools, budget authority
+
+Platform capabilities you can discuss:
+- AI-powered competitor analysis and market research
+- Automated sales intelligence and lead qualification
+- Real-time data enrichment and verification
+- Integrated CRM and workflow automation
+- Custom AI agents for specific sales tasks
+
+Conversation stages: greeting → discovery → qualification → education → objection_handling → closing
+
+Keep responses concise, professional, and focused on understanding their needs before pitching features.
+"""
+
+
+async def get_ai_response(
+    messages: List[Dict[str, str]],
+    model: str = "gpt-4o-mini",
+    temperature: float = 0.7,
+    max_tokens: int = 500
+) -> Optional[str]:
+    """
+    Get AI response from LLM Gateway
+    
+    Args:
+        messages: List of message dicts with 'role' and 'content'
+        model: Model name (gpt-4o-mini, claude-3-5-sonnet-20241022, etc)
+        temperature: Sampling temperature
+        max_tokens: Max response tokens
+    
+    Returns:
+        AI response text or None if failed
+    """
+    try:
+        # Prepend system prompt
+        full_messages = [
+            {"role": "system", "content": SALES_SYSTEM_PROMPT}
+        ] + messages
+        
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                f"{LLM_GATEWAY_URL}/v1/chat/completions",
+                json={
+                    "model": model,
+                    "messages": full_messages,
+                    "temperature": temperature,
+                    "max_tokens": max_tokens
+                }
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                ai_message = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                logger.info(f"LLM response received: {len(ai_message)} chars")
+                return ai_message
+            else:
+                logger.error(f"LLM Gateway error: {response.status_code} - {response.text}")
+                return None
+                
+    except httpx.TimeoutException:
+        logger.error("LLM Gateway timeout")
+        return None
+    except Exception as e:
+        logger.error(f"LLM Gateway request failed: {e}")
+        return None
+
+
+async def get_sales_response(
+    conversation_history: List[Dict[str, str]],
+    user_message: str,
+    context: Optional[Dict] = None
+) -> str:
+    """
+    Get contextual sales response based on conversation history
+    
+    Args:
+        conversation_history: Previous messages in conversation
+        user_message: Latest user message
+        context: Optional context (company, email, stage, etc)
+    
+    Returns:
+        AI-generated sales response
+    """
+    # Build message list from history
+    messages = []
+    for msg in conversation_history:
+        if msg.get("role") in ["user", "assistant"]:
+            messages.append({
+                "role": msg["role"],
+                "content": msg["content"]
+            })
+    
+    # Add current user message
+    messages.append({
+        "role": "user",
+        "content": user_message
+    })
+    
+    # Get AI response
+    response = await get_ai_response(
+        messages=messages,
+        model="gpt-4o-mini",  # Fast and cheap for sales conversations
+        temperature=0.7,
+        max_tokens=500
+    )
+    
+    # Fallback if LLM fails
+    if not response:
+        logger.warning("LLM failed, using fallback response")
+        return "Thank you for your message. I'm having trouble connecting right now. Could you please tell me more about what you're looking for, and I'll get back to you shortly?"
+    
+    return response

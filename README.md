@@ -1,23 +1,24 @@
-# Sales API - Minimal + PostgreSQL + Redis
+# Sales API - PostgreSQL + Redis + AI
 
-Simple FastAPI server with PostgreSQL for conversations and Redis for caching.
+FastAPI server with PostgreSQL, Redis caching, and AI-powered sales conversations.
 
 ## What This Has
 
 ✅ FastAPI server
 ✅ PostgreSQL database
 ✅ Redis caching
+✅ AI responses via LLM Gateway
 ✅ Conversation storage
 ✅ Message history
 ✅ Session caching (30min TTL)
-✅ Health check at `/health`
-✅ CRUD endpoints for conversations
+✅ Sales-focused AI agent
 
 ## Environment Variables
 
 ```bash
 DATABASE_URL=postgresql://user:pass@host:port/db
 REDIS_URL=redis://host:port
+LLM_GATEWAY_URL=https://ilaunching-llm-server-production.up.railway.app
 ```
 
 ## Endpoints
@@ -26,12 +27,12 @@ REDIS_URL=redis://host:port
 - `GET /` - Service info
 - `POST /api/sales/conversations` - Create conversation
 - `GET /api/sales/conversations/{session_id}` - Get conversation (cached)
-- `POST /api/sales/message` - Send message (invalidates cache)
+- `POST /api/sales/message` - Send message with AI response
 
 ## Next Steps
 
 - ✅ PostgreSQL (DONE)
 - ✅ Redis (DONE)
-- ⏳ AI responses with OpenAI
+- ✅ AI responses (DONE)
 - ⏳ MCP tools integration
 - ⏳ Qdrant vector search

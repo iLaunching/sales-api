@@ -9,6 +9,7 @@ COPY main.py .
 COPY models.py .
 COPY database.py .
 COPY redis_client.py .
+COPY llm_client.py .
 
 EXPOSE 8080
 
