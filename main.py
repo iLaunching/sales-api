@@ -25,22 +25,32 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Startup and shutdown events"""
     logger.info("Starting Sales API...")
+    
+    # Initialize database
     try:
         await init_db()
         logger.info("Database initialized")
     except Exception as e:
         logger.warning(f"Database init failed: {e}. Running without DB.")
     
-    try:
-        await ensure_collection()
-        logger.info("Qdrant collection ready")
-    except Exception as e:
-        logger.warning(f"Qdrant init failed: {e}. Running without vector search.")
+    # Qdrant initialization - don't block startup if it fails
+    # Run in background to avoid blocking healthcheck
+    import asyncio
+    asyncio.create_task(initialize_qdrant())
     
     yield
     logger.info("Shutting down...")
     await close_db()
     close_redis()
+
+
+async def initialize_qdrant():
+    """Initialize Qdrant collection in background"""
+    try:
+        await ensure_collection()
+        logger.info("Qdrant collection ready")
+    except Exception as e:
+        logger.warning(f"Qdrant init failed: {e}. Running without vector search.")
 
 
 app = FastAPI(
