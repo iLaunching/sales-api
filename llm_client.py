@@ -70,7 +70,7 @@ async def get_ai_response(
         
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
-                f"{LLM_GATEWAY_URL}/v1/chat/completions",
+                f"{LLM_GATEWAY_URL}/generate",
                 json={
                     "model": model,
                     "messages": full_messages,
@@ -81,7 +81,7 @@ async def get_ai_response(
             
             if response.status_code == 200:
                 data = response.json()
-                ai_message = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                ai_message = data.get("content", "")
                 logger.info(f"LLM response received: {len(ai_message)} chars")
                 return ai_message
             else:
