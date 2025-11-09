@@ -33,7 +33,8 @@ if QDRANT_URL:
         http_client = httpx.AsyncClient(
             base_url=QDRANT_URL,
             headers=headers,
-            timeout=30.0
+            timeout=30.0,
+            follow_redirects=True  # Follow HTTP -> HTTPS redirects
         )
         
         logger.info("Qdrant HTTP client initialized successfully")
