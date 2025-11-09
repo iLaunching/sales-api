@@ -15,7 +15,7 @@ from models import Conversation
 from redis_client import close_redis, cache_conversation, get_cached_conversation, invalidate_cache
 from llm_client import get_sales_response
 from mcp_client import handle_objection, get_pitch_template, calculate_value
-from qdrant_client import ensure_collection, get_qdrant_stats
+from qdrant_service import ensure_collection, get_qdrant_stats
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
