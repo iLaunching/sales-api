@@ -68,7 +68,7 @@ async def get_ai_response(
             {"role": "system", "content": SALES_SYSTEM_PROMPT}
         ] + messages
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
                 f"{LLM_GATEWAY_URL}/generate",
                 json={
