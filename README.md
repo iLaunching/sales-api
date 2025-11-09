@@ -1,6 +1,6 @@
-# Sales API - PostgreSQL + Redis + AI
+# Sales API - Full Stack: PostgreSQL + Redis + AI + MCP
 
-FastAPI server with PostgreSQL, Redis caching, and AI-powered sales conversations.
+Complete FastAPI server with database, caching, AI, and MCP tools for sales.
 
 ## What This Has
 
@@ -8,6 +8,7 @@ FastAPI server with PostgreSQL, Redis caching, and AI-powered sales conversation
 ✅ PostgreSQL database
 ✅ Redis caching
 ✅ AI responses via LLM Gateway
+✅ MCP Sales Tools (objections, pitches, ROI)
 ✅ Conversation storage
 ✅ Message history
 ✅ Session caching (30min TTL)
@@ -18,26 +19,35 @@ FastAPI server with PostgreSQL, Redis caching, and AI-powered sales conversation
 ```bash
 DATABASE_URL=postgresql://user:pass@host:port/db
 REDIS_URL=redis://host:port
-LLM_GATEWAY_URL=https://ilaunching-llm-server-production.up.railway.app
+LLM_GATEWAY_URL=https://your-llm-gateway.railway.app
+MCP_SERVER_URL=https://your-mcp-server.railway.app
 
 # Optional LLM Configuration
-LLM_MODEL=gpt-4o-mini  # Model name (gpt-4o-mini, gpt-4o, claude-3-5-sonnet-20241022, etc)
-LLM_TEMPERATURE=0.7     # Creativity (0.0-1.0)
-LLM_MAX_TOKENS=500      # Max response length
+LLM_MODEL=gpt-4o-mini
+LLM_TEMPERATURE=0.7
+LLM_MAX_TOKENS=500
 ```
 
 ## Endpoints
 
+**Core:**
 - `GET /health` - Health check
 - `GET /` - Service info
+
+**Conversations:**
 - `POST /api/sales/conversations` - Create conversation
 - `GET /api/sales/conversations/{session_id}` - Get conversation (cached)
 - `POST /api/sales/message` - Send message with AI response
+
+**MCP Tools:**
+- `POST /api/mcp/objection` - Handle sales objection
+- `POST /api/mcp/pitch` - Get industry pitch template
+- `POST /api/mcp/value` - Calculate ROI/value proposition
 
 ## Next Steps
 
 - ✅ PostgreSQL (DONE)
 - ✅ Redis (DONE)
 - ✅ AI responses (DONE)
-- ⏳ MCP tools integration
-- ⏳ Qdrant vector search
+- ✅ MCP tools (DONE)
+- ⏳ Qdrant vector search (Optional)

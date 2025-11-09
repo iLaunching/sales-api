@@ -1,5 +1,5 @@
 """
-Minimal Sales API - With PostgreSQL + Redis + AI
+Minimal Sales API - PostgreSQL + Redis + AI + MCP
 """
 
 from fastapi import FastAPI, Depends, HTTPException
@@ -14,6 +14,7 @@ from database import init_db, close_db, get_db
 from models import Conversation
 from redis_client import close_redis, cache_conversation, get_cached_conversation, invalidate_cache
 from llm_client import get_sales_response
+from mcp_client import handle_objection, get_pitch_template, calculate_value
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -35,8 +36,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Sales API - PostgreSQL + Redis + AI",
-    version="1.3.0",
+    title="Sales API - Full Stack with MCP",
+    version="1.4.0",
     lifespan=lifespan
 )
 
@@ -54,9 +55,9 @@ app.add_middleware(
 async def root():
     return {
         "service": "Sales API",
-        "version": "1.3.0",
+        "version": "1.4.0",
         "status": "running",
-        "features": ["PostgreSQL", "Redis", "AI", "Conversations", "Caching"]
+        "features": ["PostgreSQL", "Redis", "AI", "MCP Tools", "Conversations", "Caching"]
     }
 
 
@@ -197,6 +198,64 @@ async def send_message(data: dict, db: AsyncSession = Depends(get_db)):
         }
     except Exception as e:
         logger.error(f"Error sending message: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============= MCP TOOL ENDPOINTS =============
+
+@app.post("/api/mcp/objection")
+async def handle_sales_objection(data: dict):
+    """Handle sales objection using MCP"""
+    try:
+        objection_type = data.get("objection_type")
+        context = data.get("context", {})
+        
+        result = await handle_objection(objection_type, context)
+        
+        if result:
+            return {"status": "ok", "data": result}
+        else:
+            return {"status": "error", "message": "MCP tool unavailable"}
+    except Exception as e:
+        logger.error(f"Error handling objection: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/mcp/pitch")
+async def get_sales_pitch(data: dict):
+    """Get pitch template using MCP"""
+    try:
+        industry = data.get("industry")
+        pain_points = data.get("pain_points", [])
+        company_size = data.get("company_size")
+        
+        result = await get_pitch_template(industry, pain_points, company_size)
+        
+        if result:
+            return {"status": "ok", "data": result}
+        else:
+            return {"status": "error", "message": "MCP tool unavailable"}
+    except Exception as e:
+        logger.error(f"Error getting pitch: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/mcp/value")
+async def calculate_roi(data: dict):
+    """Calculate value/ROI using MCP"""
+    try:
+        company_size = data.get("company_size")
+        industry = data.get("industry")
+        current_process = data.get("current_process")
+        
+        result = await calculate_value(company_size, industry, current_process)
+        
+        if result:
+            return {"status": "ok", "data": result}
+        else:
+            return {"status": "error", "message": "MCP tool unavailable"}
+    except Exception as e:
+        logger.error(f"Error calculating value: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
