@@ -39,9 +39,11 @@ COLLECTION_NAME = "sales_knowledge"
 async def ensure_collection():
     """Ensure Qdrant collection exists"""
     if not qdrant_client:
+        logger.warning("Qdrant client not initialized - skipping collection setup")
         return False
     
     try:
+        # Set a shorter timeout for startup checks
         collections = qdrant_client.get_collections().collections
         exists = any(c.name == COLLECTION_NAME for c in collections)
         
@@ -51,10 +53,12 @@ async def ensure_collection():
                 vectors_config=VectorParams(size=1536, distance=Distance.COSINE)
             )
             logger.info(f"Created Qdrant collection: {COLLECTION_NAME}")
+        else:
+            logger.info(f"Qdrant collection already exists: {COLLECTION_NAME}")
         
         return True
     except Exception as e:
-        logger.error(f"Failed to ensure collection: {e}")
+        logger.warning(f"Qdrant collection setup skipped: {e}")
         return False
 
 

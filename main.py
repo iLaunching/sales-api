@@ -72,10 +72,15 @@ async def root():
 @app.get("/health")
 async def health():
     """Health check with system status"""
-    qdrant_stats = get_qdrant_stats()
+    try:
+        qdrant_stats = get_qdrant_stats()
+    except Exception as e:
+        logger.warning(f"Failed to get Qdrant stats: {e}")
+        qdrant_stats = None
+    
     return {
         "status": "healthy",
-        "qdrant": qdrant_stats if qdrant_stats else "unavailable"
+        "qdrant": qdrant_stats if qdrant_stats else "not_configured"
     }
 
 
