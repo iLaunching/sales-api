@@ -12,6 +12,7 @@ COPY redis_client.py .
 COPY llm_client.py .
 COPY mcp_client.py .
 COPY qdrant_service.py .
+COPY content_processor.py .
 
 EXPOSE 8080
 
