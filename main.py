@@ -1,5 +1,6 @@
 """
 Minimal Sales API - Full Stack with Vector Search
+Version: 2.4.1 - WebSocket streaming with metadata
 """
 
 from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect
