@@ -2,13 +2,14 @@
 Minimal Sales API - Full Stack with Vector Search
 """
 
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import datetime
 import logging
+import asyncio
 
 from database import init_db, close_db, get_db
 from models import Conversation
@@ -285,6 +286,155 @@ async def calculate_roi(data: dict):
     except Exception as e:
         logger.error(f"Error calculating value: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# STREAMING ENDPOINT - Tiptap Editor Content Streaming
+# ============================================================================
+
+@app.websocket("/ws/stream/{session_id}")
+async def stream_content_websocket(websocket: WebSocket, session_id: str):
+    """
+    WebSocket endpoint for streaming content to Tiptap editor.
+    
+    Flow:
+    1. Client connects and sends content request
+    2. Server processes content (sanitize, chunk, transform)
+    3. Server streams chunks at optimal rate
+    4. Client receives chunks and displays in editor
+    
+    Message Types:
+    - Client -> Server: {"type": "stream_request", "content": "...", "content_type": "text|html|markdown", "speed": "normal", "chunk_by": "word"}
+    - Server -> Client: {"type": "connected", "session_id": "..."}
+    - Server -> Client: {"type": "stream_start", "total_chunks": 100}
+    - Server -> Client: {"type": "chunk", "data": "...", "index": 0}
+    - Server -> Client: {"type": "stream_complete", "total_chunks": 100}
+    """
+    await websocket.accept()
+    logger.info(f"Streaming WebSocket connected: {session_id}")
+    
+    try:
+        # Send connection confirmation
+        await websocket.send_json({
+            "type": "connected",
+            "session_id": session_id,
+            "timestamp": datetime.utcnow().isoformat()
+        })
+        
+        # Wait for streaming requests
+        while True:
+            data = await websocket.receive_json()
+            
+            if data.get("type") == "stream_request":
+                # Extract request parameters
+                content = data.get("content", "")
+                content_type = data.get("content_type", "text")
+                speed = data.get("speed", "normal")
+                chunk_by = data.get("chunk_by", "word")
+                
+                logger.info(f"Stream request: session={session_id}, length={len(content)}, type={content_type}, speed={speed}")
+                
+                # Process and stream content
+                await process_and_stream_content(
+                    websocket=websocket,
+                    content=content,
+                    content_type=content_type,
+                    speed=speed,
+                    chunk_by=chunk_by
+                )
+                
+            elif data.get("type") == "ping":
+                await websocket.send_json({
+                    "type": "pong",
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+                
+    except WebSocketDisconnect:
+        logger.info(f"Streaming WebSocket disconnected: {session_id}")
+    except Exception as e:
+        logger.error(f"Streaming WebSocket error: {session_id} - {e}")
+        try:
+            await websocket.send_json({
+                "type": "error",
+                "message": str(e)
+            })
+        except:
+            pass
+
+
+async def process_and_stream_content(
+    websocket: WebSocket,
+    content: str,
+    content_type: str,
+    speed: str,
+    chunk_by: str
+):
+    """
+    Process content and stream chunks to client.
+    
+    Phase 2.2 TODO: Add HTML sanitization, markdown parsing, smart chunking
+    For now: Simple implementation with basic chunking
+    """
+    try:
+        # Speed preset delays (seconds)
+        speed_delays = {
+            "slow": 0.3,
+            "normal": 0.1,
+            "fast": 0.05,
+            "superfast": 0.03,
+            "adaptive": 0.1  # Will calculate based on content
+        }
+        delay = speed_delays.get(speed, 0.1)
+        
+        # Simple chunking (Phase 2.2 will add smart chunking)
+        if chunk_by == "word":
+            chunks = content.split()
+            chunks = [chunk + " " for chunk in chunks]  # Preserve spaces
+        elif chunk_by == "character":
+            chunks = list(content)
+        elif chunk_by == "sentence":
+            # Simple sentence splitting
+            chunks = content.replace(". ", ".|").split("|")
+            chunks = [chunk.strip() + " " for chunk in chunks if chunk.strip()]
+        else:
+            chunks = [content]
+        
+        # Send stream start event
+        await websocket.send_json({
+            "type": "stream_start",
+            "total_chunks": len(chunks),
+            "content_type": content_type,
+            "timestamp": datetime.utcnow().isoformat()
+        })
+        
+        # Stream chunks
+        for i, chunk in enumerate(chunks):
+            await websocket.send_json({
+                "type": "chunk",
+                "data": chunk,
+                "index": i,
+                "total": len(chunks),
+                "timestamp": datetime.utcnow().isoformat()
+            })
+            
+            # Delay between chunks
+            await asyncio.sleep(delay)
+        
+        # Send stream complete event
+        await websocket.send_json({
+            "type": "stream_complete",
+            "total_chunks": len(chunks),
+            "timestamp": datetime.utcnow().isoformat()
+        })
+        
+        logger.info(f"Stream completed: {len(chunks)} chunks")
+        
+    except Exception as e:
+        logger.error(f"Stream processing error: {e}")
+        await websocket.send_json({
+            "type": "error",
+            "message": f"Streaming error: {str(e)}"
+        })
 
 
 if __name__ == "__main__":
