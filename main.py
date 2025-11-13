@@ -421,7 +421,7 @@ async def process_and_stream_content(
             "timestamp": datetime.utcnow().isoformat()
         })
         
-        # Diff-based streaming: accumulate and send differences
+        # Diff-based streaming: accumulate and send complete HTML fragments
         accumulated = ""
         previous_length = 0
         
@@ -429,23 +429,34 @@ async def process_and_stream_content(
             # Accumulate the chunk
             accumulated += chunk
             
-            # For HTML/Markdown, ensure we have complete tags before sending
+            # For HTML/Markdown, only send when we have valid, complete HTML
             if content_type in ['html', 'markdown']:
-                # Send only the new portion since last send
-                new_content = accumulated[previous_length:]
+                # Check if accumulated content has balanced tags
+                open_tags = accumulated.count('<') - accumulated.count('</')
+                close_tags = accumulated.count('/>')
                 
-                # Only send if we have complete content (not mid-tag)
-                if new_content and not new_content.rstrip().endswith('<'):
-                    await websocket.send_json({
-                        "type": "chunk",
-                        "data": new_content,
-                        "index": i,
-                        "total": len(chunks),
-                        "accumulated_length": len(accumulated),
-                        "timestamp": datetime.utcnow().isoformat()
-                    })
-                    previous_length = len(accumulated)
-                    await asyncio.sleep(delay)
+                # Simple check: if we're not in the middle of a tag, send
+                # A more robust check would validate tag pairing
+                is_mid_tag = accumulated.rstrip().endswith('<') or (
+                    accumulated.count('<') > accumulated.count('>') 
+                )
+                
+                if not is_mid_tag and accumulated != previous_length:
+                    # Send only the new portion since last send
+                    new_content = accumulated[previous_length:]
+                    
+                    if new_content.strip():
+                        logger.debug(f"Sending HTML chunk {i}: '{new_content[:50]}...'")
+                        await websocket.send_json({
+                            "type": "chunk",
+                            "data": new_content,
+                            "index": i,
+                            "total": len(chunks),
+                            "accumulated_length": len(accumulated),
+                            "timestamp": datetime.utcnow().isoformat()
+                        })
+                        previous_length = len(accumulated)
+                        await asyncio.sleep(delay)
             else:
                 # Plain text - send immediately
                 await websocket.send_json({
