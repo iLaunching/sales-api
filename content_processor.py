@@ -215,51 +215,68 @@ def analyze_content_complexity(content: str) -> Dict[str, any]:
 
 def chunk_html_by_words(html: str) -> List[str]:
     """
-    Split HTML into word-based chunks while preserving complete tags.
-    Tags are treated as atomic units and never split.
+    Split HTML into word-based chunks while preserving complete tag pairs.
+    Groups opening tags with content and closing tags for valid HTML fragments.
     """
     chunks = []
     current_chunk = ""
-    in_tag = False
-    
+    tag_stack = []
     i = 0
+    
     while i < len(html):
         char = html[i]
         
         if char == '<':
-            # Start of tag - save current chunk if not empty
-            if current_chunk.strip():
-                chunks.append(current_chunk)
-                current_chunk = ""
-            # Start collecting tag
-            in_tag = True
-            tag_start = i
-        
-        if in_tag:
-            if char == '>':
-                # Complete tag found
-                tag = html[tag_start:i+1]
-                chunks.append(tag)
-                in_tag = False
-                i += 1
-                continue
-        else:
-            # Not in tag - check for word boundary
-            if char in (' ', '\n', '\t'):
-                # Word boundary - save chunk with space
-                if current_chunk:
+            # Found a tag - parse it
+            tag_end = html.find('>', i)
+            if tag_end == -1:
+                # Malformed HTML, just add remaining
+                current_chunk += html[i:]
+                break
+            
+            tag = html[i:tag_end + 1]
+            
+            # Check if it's a closing tag
+            if tag.startswith('</'):
+                # Closing tag - add it to current chunk and flush
+                current_chunk += tag
+                # Pop from stack
+                if tag_stack:
+                    tag_stack.pop()
+                # If stack is empty, we have a complete unit
+                if not tag_stack and current_chunk.strip():
+                    chunks.append(current_chunk)
+                    current_chunk = ""
+            elif tag.endswith('/>'):
+                # Self-closing tag
+                current_chunk += tag
+            else:
+                # Opening tag - add to chunk and push to stack
+                current_chunk += tag
+                # Extract tag name
+                tag_name = tag[1:].split()[0].rstrip('>')
+                tag_stack.append(tag_name)
+            
+            i = tag_end + 1
+        elif char in (' ', '\n', '\t'):
+            # Word boundary
+            if tag_stack:
+                # Inside tags - keep accumulating
+                current_chunk += char
+            else:
+                # Outside tags - can split here
+                if current_chunk.strip():
                     chunks.append(current_chunk + char)
                     current_chunk = ""
-                elif char == ' ':
-                    # Standalone space
-                    chunks.append(' ')
-            else:
-                current_chunk += char
-        
-        i += 1
+                else:
+                    current_chunk += char
+            i += 1
+        else:
+            current_chunk += char
+            i += 1
     
-    # Add any remaining chunk
-    if current_chunk:
+    # Add any remaining content
+    if current_chunk.strip():
         chunks.append(current_chunk)
     
     return chunks
