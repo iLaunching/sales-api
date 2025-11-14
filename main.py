@@ -305,19 +305,25 @@ async def stream_content_websocket(websocket: WebSocket, session_id: str):
     - Comprehensive error recovery
     - Resource cleanup on disconnect
     - Request validation and sanitization
+    - Stream control (pause/resume/skip)
     
     Flow:
     1. Client connects and sends content request
     2. Server validates and processes content (sanitize, chunk, transform)
     3. Server streams chunks at optimal rate with backpressure handling
-    4. Client receives chunks and displays in editor
+    4. Client can control stream (pause/resume/skip)
+    5. Client receives chunks and displays in editor
     
     Message Types:
     - Client → Server: {"type": "stream_request", "content": "...", "content_type": "text|html|markdown", "speed": "normal", "chunk_by": "word"}
+    - Client → Server: {"type": "stream_control", "action": "pause|resume|skip"}
     - Server → Client: {"type": "connected", "session_id": "...", "limits": {...}}
     - Server → Client: {"type": "stream_start", "total_chunks": 100, "metadata": {...}}
     - Server → Client: {"type": "chunk", "data": "...", "index": 0}
     - Server → Client: {"type": "stream_complete", "total_chunks": 100}
+    - Server → Client: {"type": "stream_paused"}
+    - Server → Client: {"type": "stream_resumed"}
+    - Server → Client: {"type": "stream_skipped"}
     - Server → Client: {"type": "error", "message": "...", "code": "..."}
     """
     # Session tracking and rate limiting
@@ -326,6 +332,13 @@ async def stream_content_websocket(websocket: WebSocket, session_id: str):
     MAX_REQUESTS_PER_SESSION = 100
     MAX_SESSION_DURATION = 3600  # 1 hour
     MAX_CONTENT_SIZE = 100_000  # 100KB per request
+    
+    # Stream control state
+    stream_control = {
+        "paused": False,
+        "skip": False,
+        "current_task": None
+    }
     
     await websocket.accept()
     logger.info(f"✅ WebSocket connected: {session_id}")
@@ -418,13 +431,16 @@ async def stream_content_websocket(websocket: WebSocket, session_id: str):
                 
                 # Process and stream content with error handling
                 try:
+                    stream_control["paused"] = False
+                    stream_control["skip"] = False
                     await process_and_stream_content(
                         websocket=websocket,
                         content=content,
                         content_type=content_type,
                         speed=speed,
                         chunk_by=chunk_by,
-                        session_id=session_id
+                        session_id=session_id,
+                        stream_control=stream_control
                     )
                 except Exception as e:
                     logger.error(f"❌ Stream processing failed: {type(e).__name__}: {e}")
@@ -432,6 +448,35 @@ async def stream_content_websocket(websocket: WebSocket, session_id: str):
                         "type": "error",
                         "code": "PROCESSING_ERROR",
                         "message": f"Failed to process content: {str(e)[:100]}"
+                    })
+            
+            elif data.get("type") == "stream_control":
+                action = data.get("action")
+                logger.info(f"🎮 Stream control: {action}")
+                
+                if action == "pause":
+                    stream_control["paused"] = True
+                    await websocket.send_json({
+                        "type": "stream_paused",
+                        "timestamp": datetime.utcnow().isoformat()
+                    })
+                elif action == "resume":
+                    stream_control["paused"] = False
+                    await websocket.send_json({
+                        "type": "stream_resumed",
+                        "timestamp": datetime.utcnow().isoformat()
+                    })
+                elif action == "skip":
+                    stream_control["skip"] = True
+                    await websocket.send_json({
+                        "type": "stream_skipped",
+                        "timestamp": datetime.utcnow().isoformat()
+                    })
+                else:
+                    await websocket.send_json({
+                        "type": "error",
+                        "code": "INVALID_CONTROL_ACTION",
+                        "message": f"action must be pause, resume, or skip"
                     })
                 
             elif data.get("type") == "ping":
@@ -471,7 +516,8 @@ async def process_and_stream_content(
     content_type: str,
     speed: str,
     chunk_by: str,
-    session_id: str = "unknown"
+    session_id: str = "unknown",
+    stream_control: dict = None
 ):
     """
     Production-ready content processing and streaming with comprehensive error handling.
@@ -481,6 +527,7 @@ async def process_and_stream_content(
     - Safe chunking with validation
     - Diff-based streaming for HTML integrity
     - Backpressure handling for network stability
+    - Stream control (pause/resume/skip)
     - Progress tracking and metrics
     - Graceful error recovery
     
@@ -488,7 +535,13 @@ async def process_and_stream_content(
     - Accumulates content and calculates diffs
     - Ensures client receives complete, valid HTML fragments
     - Prevents broken tags across chunks
+    
+    Phase 3.1: Stream control support
+    - Respects pause state (waits until resume)
+    - Handles skip command (sends all remaining content)
     """
+    if stream_control is None:
+        stream_control = {"paused": False, "skip": False}
     try:
         # Analyze content for optimal strategy
         try:
@@ -562,6 +615,24 @@ async def process_and_stream_content(
         
         for i, chunk in enumerate(chunks):
             try:
+                # Check if stream should be skipped
+                if stream_control.get("skip"):
+                    logger.info("⏭️ Stream skipped, sending all remaining content")
+                    # Send all remaining chunks immediately
+                    remaining_content = "".join(chunks[i:])
+                    await websocket.send_json({
+                        "type": "chunk",
+                        "data": remaining_content,
+                        "index": sent_chunks,
+                        "timestamp": datetime.utcnow().isoformat()
+                    })
+                    sent_chunks += 1
+                    break
+                
+                # Wait while paused
+                while stream_control.get("paused"):
+                    await asyncio.sleep(0.1)  # Check every 100ms
+                
                 # Accumulate content
                 accumulated += chunk
                 
