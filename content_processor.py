@@ -37,37 +37,16 @@ SAFE_TAGS = {
 
 
 class HTMLSanitizer(HTMLParser):
-    """Sanitize HTML by removing dangerous tags and attributes, but preserve code blocks"""
+    """Sanitize HTML by removing dangerous tags and attributes"""
     
     def __init__(self):
         super().__init__()
         self.result = []
         self.current_tag = None
-        self.in_code_block = False  # Track if we're inside <pre><code>
-        self.code_block_depth = 0
         
     def handle_starttag(self, tag, attrs):
         """Handle opening tags"""
-        tag_lower = tag.lower()
-        
-        # Track code blocks - don't sanitize content inside them
-        if tag_lower == 'pre':
-            self.code_block_depth += 1
-            self.in_code_block = True
-        elif tag_lower == 'code' and self.code_block_depth > 0:
-            self.in_code_block = True
-        
-        # If inside code block, preserve everything as-is
-        if self.in_code_block:
-            if attrs:
-                attrs_str = ' '.join([f'{name}="{value}"' for name, value in attrs])
-                self.result.append(f'<{tag} {attrs_str}>')
-            else:
-                self.result.append(f'<{tag}>')
-            return
-        
-        # Normal sanitization for non-code content
-        if tag_lower in DANGEROUS_TAGS:
+        if tag.lower() in DANGEROUS_TAGS:
             return
             
         # Filter dangerous attributes
@@ -89,22 +68,11 @@ class HTMLSanitizer(HTMLParser):
     
     def handle_endtag(self, tag):
         """Handle closing tags"""
-        tag_lower = tag.lower()
-        
-        # Track code block exit
-        if tag_lower == 'pre':
-            self.code_block_depth -= 1
-            if self.code_block_depth == 0:
-                self.in_code_block = False
-        
-        # If inside code block or it's the closing tag, preserve it
-        if self.in_code_block or tag_lower in ('pre', 'code'):
-            self.result.append(f'</{tag}>')
-        elif tag_lower not in DANGEROUS_TAGS:
+        if tag.lower() not in DANGEROUS_TAGS:
             self.result.append(f'</{tag}>')
     
     def handle_data(self, data):
-        """Handle text content - preserve everything inside code blocks"""
+        """Handle text content"""
         self.result.append(data)
     
     def get_sanitized(self):
@@ -122,6 +90,7 @@ def sanitize_html(html: str) -> str:
     - Neutralizes javascript: protocol in href/src
     - Validates against XSS attack patterns
     - Preserves safe formatting and structure
+    - PRESERVES code block content without parsing
     
     Args:
         html: Raw HTML string to sanitize
@@ -132,7 +101,19 @@ def sanitize_html(html: str) -> str:
     if not html or not isinstance(html, str):
         return ""
     
-    # Input validation: check for suspicious patterns
+    # Step 1: Extract and protect code blocks BEFORE parsing
+    code_blocks = []
+    code_block_pattern = r'(<pre[^>]*>.*?</pre>)'
+    
+    def replace_code_block(match):
+        """Replace code blocks with placeholders"""
+        code_blocks.append(match.group(1))
+        return f'___CODE_BLOCK_{len(code_blocks) - 1}___'
+    
+    # Replace code blocks with placeholders
+    html_without_code = re.sub(code_block_pattern, replace_code_block, html, flags=re.DOTALL)
+    
+    # Input validation: check for suspicious patterns (only in non-code content)
     xss_patterns = [
         r'javascript:',
         r'on\w+\s*=',  # Event handlers
@@ -143,16 +124,22 @@ def sanitize_html(html: str) -> str:
     
     suspicious_found = []
     for pattern in xss_patterns:
-        if re.search(pattern, html, re.IGNORECASE):
+        if re.search(pattern, html_without_code, re.IGNORECASE):
             suspicious_found.append(pattern)
     
     if suspicious_found:
         logger.warning(f"Suspicious patterns detected in HTML: {suspicious_found}")
     
     try:
+        # Step 2: Sanitize the HTML without code blocks
         sanitizer = HTMLSanitizer()
-        sanitizer.feed(html)
+        sanitizer.feed(html_without_code)
         sanitized = sanitizer.get_sanitized()
+        
+        # Step 3: Restore code blocks with original content
+        for i, code_block in enumerate(code_blocks):
+            placeholder = f'___CODE_BLOCK_{i}___'
+            sanitized = sanitized.replace(placeholder, code_block)
         
         # Validation: ensure output is not empty if input wasn't
         if html.strip() and not sanitized.strip():
