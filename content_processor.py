@@ -37,16 +37,37 @@ SAFE_TAGS = {
 
 
 class HTMLSanitizer(HTMLParser):
-    """Sanitize HTML by removing dangerous tags and attributes"""
+    """Sanitize HTML by removing dangerous tags and attributes, but preserve code blocks"""
     
     def __init__(self):
         super().__init__()
         self.result = []
         self.current_tag = None
+        self.in_code_block = False  # Track if we're inside <pre><code>
+        self.code_block_depth = 0
         
     def handle_starttag(self, tag, attrs):
         """Handle opening tags"""
-        if tag.lower() in DANGEROUS_TAGS:
+        tag_lower = tag.lower()
+        
+        # Track code blocks - don't sanitize content inside them
+        if tag_lower == 'pre':
+            self.code_block_depth += 1
+            self.in_code_block = True
+        elif tag_lower == 'code' and self.code_block_depth > 0:
+            self.in_code_block = True
+        
+        # If inside code block, preserve everything as-is
+        if self.in_code_block:
+            if attrs:
+                attrs_str = ' '.join([f'{name}="{value}"' for name, value in attrs])
+                self.result.append(f'<{tag} {attrs_str}>')
+            else:
+                self.result.append(f'<{tag}>')
+            return
+        
+        # Normal sanitization for non-code content
+        if tag_lower in DANGEROUS_TAGS:
             return
             
         # Filter dangerous attributes
@@ -68,11 +89,22 @@ class HTMLSanitizer(HTMLParser):
     
     def handle_endtag(self, tag):
         """Handle closing tags"""
-        if tag.lower() not in DANGEROUS_TAGS:
+        tag_lower = tag.lower()
+        
+        # Track code block exit
+        if tag_lower == 'pre':
+            self.code_block_depth -= 1
+            if self.code_block_depth == 0:
+                self.in_code_block = False
+        
+        # If inside code block or it's the closing tag, preserve it
+        if self.in_code_block or tag_lower in ('pre', 'code'):
+            self.result.append(f'</{tag}>')
+        elif tag_lower not in DANGEROUS_TAGS:
             self.result.append(f'</{tag}>')
     
     def handle_data(self, data):
-        """Handle text content"""
+        """Handle text content - preserve everything inside code blocks"""
         self.result.append(data)
     
     def get_sanitized(self):
