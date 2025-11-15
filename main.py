@@ -611,14 +611,14 @@ async def process_and_stream_content(
             speed = analysis.get("recommended_speed", "normal")
             logger.info(f"⚡ Adaptive speed selected: {speed}")
         
-        # Speed preset delays (seconds)
+        # Speed preset delays (seconds) - increased for better visual streaming
         speed_delays = {
-            "slow": 0.3,
-            "normal": 0.1,
-            "fast": 0.05,
-            "superfast": 0.03
+            "slow": 0.5,
+            "normal": 0.2,
+            "fast": 0.1,
+            "superfast": 0.05
         }
-        delay = speed_delays.get(speed, 0.1)
+        delay = speed_delays.get(speed, 0.2)
         
         # Smart chunking with content processing
         try:
