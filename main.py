@@ -450,17 +450,29 @@ async def stream_content_websocket(websocket: WebSocket, session_id: str):
                 
                 logger.info(f"🔄 Stream request #{request_count}: session={session_id}, length={len(content)}, type={content_type}, speed={speed}")
                 
-                # Process and stream content with error handling
+                # Get LLM response for the user's query
+                try:
+                    logger.info(f"🤖 Calling LLM with user query: {content[:100]}...")
+                    llm_response = await get_sales_response(
+                        conversation_history=[],  # TODO: Track conversation history per session
+                        user_message=content
+                    )
+                    logger.info(f"✅ LLM response received: {len(llm_response)} chars")
+                except Exception as llm_error:
+                    logger.error(f"❌ LLM call failed: {llm_error}")
+                    llm_response = "<p>I apologize, but I'm having trouble processing your request right now. Please try again in a moment.</p>"
+                
+                # Process and stream LLM response with error handling
                 try:
                     stream_control["paused"] = False
                     stream_control["skip"] = False
                     
-                    # Create streaming task
+                    # Create streaming task with LLM response
                     streaming_task = asyncio.create_task(
                         process_and_stream_content(
                             websocket=websocket,
-                            content=content,
-                            content_type=content_type,
+                            content=llm_response,  # Stream LLM response instead of user query
+                            content_type="html",  # LLM returns HTML
                             speed=speed,
                             chunk_by=chunk_by,
                             session_id=session_id,
