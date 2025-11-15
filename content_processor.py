@@ -353,10 +353,8 @@ def chunk_html_by_words(html: str, max_chunk_size: int = 1000) -> List[str]:
                     else:
                         logger.warning(f"Mismatched closing tag: {tag_name}, expected: {tag_stack[-1] if tag_stack else 'none'}")
                     
-                    # If stack is empty, we have a complete unit
-                    if not tag_stack and current_chunk.strip():
-                        chunks.append(current_chunk)
-                        current_chunk = ""
+                    # If stack is empty, we have a complete unit - but continue for word-level chunking
+                    # Don't immediately chunk here, let it accumulate words
                         
                 elif tag.endswith('/>') or tag_name in self_closing_tags:
                     # Self-closing tag or known void element
@@ -370,23 +368,14 @@ def chunk_html_by_words(html: str, max_chunk_size: int = 1000) -> List[str]:
                 i = tag_end + 1
                 
             elif char in (' ', '\n', '\t', '\r'):
-                # Word boundary (whitespace)
-                if tag_stack:
-                    # Inside tags - keep accumulating
-                    current_chunk += char
-                else:
-                    # Outside tags - can split here
-                    if current_chunk.strip():
-                        # Safety check: enforce max chunk size
-                        if len(current_chunk) > max_chunk_size:
-                            logger.warning(f"Chunk exceeds max size ({len(current_chunk)} > {max_chunk_size}), force splitting")
-                            chunks.append(current_chunk)
-                            current_chunk = ""
-                        else:
-                            chunks.append(current_chunk + char)
-                            current_chunk = ""
-                    else:
-                        current_chunk += char
+                # Word boundary (whitespace) - chunk here regardless of tag nesting
+                current_chunk += char
+                if current_chunk.strip():
+                    # Safety check: enforce max chunk size
+                    if len(current_chunk) > max_chunk_size:
+                        logger.warning(f"Chunk exceeds max size ({len(current_chunk)} > {max_chunk_size}), force splitting")
+                    chunks.append(current_chunk)
+                    current_chunk = ""
                 i += 1
                 
             else:
