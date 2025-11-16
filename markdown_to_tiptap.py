@@ -37,6 +37,7 @@ class MarkdownToTiptapConverter:
         self.heading_pattern = re.compile(r'^(#{1,6})\s+(.+)$', re.MULTILINE)
         self.list_item_pattern = re.compile(r'^[\s]*[-*+]\s+(.+)$', re.MULTILINE)
         self.ordered_list_pattern = re.compile(r'^[\s]*\d+\.\s+(.+)$', re.MULTILINE)
+        self.task_item_pattern = re.compile(r'^[\s]*-\s+\[([ xX])\]\s+(.+)$', re.MULTILINE)
         self.table_pattern = re.compile(
             r'^\|(.+)\|\s*\n\|[\s:|-]+\|\s*\n((?:\|.+\|\s*\n?)+)',
             re.MULTILINE
@@ -57,11 +58,13 @@ class MarkdownToTiptapConverter:
         
         nodes = []
         
-        # First pass: Extract code blocks and tables, replace with placeholders
+        # First pass: Extract code blocks, tables, and task lists, replace with placeholders
         code_blocks = []
         tables = []
+        task_lists = []
         text_with_placeholders = self._extract_code_blocks(text, code_blocks)
         text_with_placeholders = self._extract_tables(text_with_placeholders, tables)
+        text_with_placeholders = self._extract_task_lists(text_with_placeholders, task_lists)
         
         # Split by double newlines OR single newlines for headings
         # This ensures each heading gets its own block
@@ -102,10 +105,16 @@ class MarkdownToTiptapConverter:
                 nodes.append(code_blocks[index])
                 continue
             
-            # Check if this is a table placeholder
-            if block.startswith('__TABLE_'):
+            # Check for table placeholders
+            if block.startswith('__TABLE_') and block.endswith('__'):
                 index = int(block.replace('__TABLE_', '').replace('__', ''))
                 nodes.append(tables[index])
+                continue
+            
+            # Check for task list placeholders
+            if block.startswith('__TASKLIST_') and block.endswith('__'):
+                index = int(block.replace('__TASKLIST_', '').replace('__', ''))
+                nodes.append(task_lists[index])
                 continue
             
             # Check for headings
@@ -462,6 +471,82 @@ class MarkdownToTiptapConverter:
         return {
             "type": "table",
             "content": table_content
+        }
+    
+    def _extract_task_lists(self, text: str, task_lists: List[Dict]) -> str:
+        """
+        Extract task lists (checkboxes) and replace with placeholders.
+        """
+        lines = text.split('\n')
+        result_lines = []
+        current_task_items = []
+        
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            match = self.task_item_pattern.match(line)
+            
+            if match:
+                # This is a task item
+                checked = match.group(1).lower() == 'x'
+                content_text = match.group(2).strip()
+                current_task_items.append({
+                    'checked': checked,
+                    'text': content_text
+                })
+                i += 1
+            else:
+                # Not a task item
+                if current_task_items:
+                    # Save the accumulated task list
+                    task_list_node = self._parse_task_list(current_task_items)
+                    index = len(task_lists)
+                    task_lists.append(task_list_node)
+                    result_lines.append(f'__TASKLIST_{index}__')
+                    current_task_items = []
+                
+                result_lines.append(line)
+                i += 1
+        
+        # Handle any remaining task items
+        if current_task_items:
+            task_list_node = self._parse_task_list(current_task_items)
+            index = len(task_lists)
+            task_lists.append(task_list_node)
+            result_lines.append(f'__TASKLIST_{index}__')
+        
+        return '\n'.join(result_lines)
+    
+    def _parse_task_list(self, task_items: List[Dict]) -> Dict[str, Any]:
+        """
+        Parse task items into Tiptap taskList node.
+        
+        Args:
+            task_items: List of dicts with 'checked' (bool) and 'text' (str)
+        
+        Returns:
+            Tiptap taskList node with taskItem children
+        """
+        content = []
+        
+        for item in task_items:
+            task_item_node = {
+                "type": "taskItem",
+                "attrs": {
+                    "checked": item['checked']
+                },
+                "content": [
+                    {
+                        "type": "paragraph",
+                        "content": self._parse_inline_formatting(item['text'])
+                    }
+                ]
+            }
+            content.append(task_item_node)
+        
+        return {
+            "type": "taskList",
+            "content": content
         }
 
 
