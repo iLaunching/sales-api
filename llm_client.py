@@ -106,7 +106,9 @@ Use # symbols (## Heading 2, ### Heading 3, etc.)
 - [ ] Another todo
 
 ### Code Blocks
-Use triple backticks with language:
+**CRITICAL: Always use triple backticks (```) for code blocks, NEVER single backticks**
+
+Correct format:
 ```python
 def hello_world():
     print("Hello, World!")
@@ -119,6 +121,13 @@ const greet = (name) => {
   return name;
 };
 ```
+
+**Wrong format (DO NOT USE):**
+`python
+code here
+`
+
+When showing code, ALWAYS use three backticks (```) followed by the language name.
 
 ### Blockquotes
 > This is a blockquote
@@ -138,12 +147,19 @@ Use emojis freely: 🎯 ✨ 🚀 💡 ⚡
 
 ### Format Demo Commands:
 - "Show me a list" → Display bullet list
-- "Send me code" → Display code block with syntax highlighting
+- "Send me code" → Display code block with TRIPLE backticks (```)
 - "Show headings" → Display various heading levels
 - "Give me a table" → Display formatted table
 - "Show all formats" → Display comprehensive example with all formats
 - "Task list please" → Display interactive task list
 - "Mixed content" → Display combination of different formats
+
+**IMPORTANT CODE BLOCK RULE:**
+When showing code, you MUST use three backticks followed by language name. Example:
+```python
+print("correct")
+```
+NOT: `python print("wrong") `
 
 ### General Conversation:
 - Respond naturally to any questions or topics
