@@ -37,6 +37,10 @@ class MarkdownToTiptapConverter:
         self.heading_pattern = re.compile(r'^(#{1,6})\s+(.+)$', re.MULTILINE)
         self.list_item_pattern = re.compile(r'^[\s]*[-*+]\s+(.+)$', re.MULTILINE)
         self.ordered_list_pattern = re.compile(r'^[\s]*\d+\.\s+(.+)$', re.MULTILINE)
+        self.table_pattern = re.compile(
+            r'^\|(.+)\|\s*\n\|[\s:|-]+\|\s*\n((?:\|.+\|\s*\n?)+)',
+            re.MULTILINE
+        )
     
     def parse_markdown(self, text: str) -> List[Dict[str, Any]]:
         """
@@ -53,9 +57,11 @@ class MarkdownToTiptapConverter:
         
         nodes = []
         
-        # First pass: Extract code blocks and replace with placeholders
+        # First pass: Extract code blocks and tables, replace with placeholders
         code_blocks = []
+        tables = []
         text_with_placeholders = self._extract_code_blocks(text, code_blocks)
+        text_with_placeholders = self._extract_tables(text_with_placeholders, tables)
         
         # Split by double newlines OR single newlines for headings
         # This ensures each heading gets its own block
@@ -94,6 +100,12 @@ class MarkdownToTiptapConverter:
             if block.startswith('__CODE_BLOCK_'):
                 index = int(block.replace('__CODE_BLOCK_', '').replace('__', ''))
                 nodes.append(code_blocks[index])
+                continue
+            
+            # Check if this is a table placeholder
+            if block.startswith('__TABLE_'):
+                index = int(block.replace('__TABLE_', '').replace('__', ''))
+                nodes.append(tables[index])
                 continue
             
             # Check for headings
@@ -371,6 +383,86 @@ class MarkdownToTiptapConverter:
                 })
         
         return result if result else [{"type": "text", "text": text}]
+    
+    def _extract_tables(self, text: str, tables: List[Dict]) -> str:
+        """
+        Extract markdown tables and replace with placeholders.
+        """
+        def replace_table(match):
+            header_row = match.group(1)
+            body_rows = match.group(2)
+            
+            node = self._parse_table(header_row, body_rows)
+            index = len(tables)
+            tables.append(node)
+            return f'\n\n__TABLE_{index}__\n\n'
+        
+        return self.table_pattern.sub(replace_table, text)
+    
+    def _parse_table(self, header_row: str, body_rows: str) -> Dict[str, Any]:
+        """
+        Parse markdown table into Tiptap table node.
+        
+        Args:
+            header_row: "Column 1 | Column 2 | Column 3"
+            body_rows: Multiple lines of "Data 1 | Data 2 | Data 3"
+        
+        Returns:
+            Tiptap table node with tableRow, tableHeader, and tableCell nodes
+        """
+        # Parse header cells
+        header_cells = [cell.strip() for cell in header_row.split('|') if cell.strip()]
+        
+        # Parse body rows
+        body_lines = [line.strip() for line in body_rows.strip().split('\n') if line.strip()]
+        
+        table_content = []
+        
+        # Create header row
+        header_row_node = {
+            "type": "tableRow",
+            "content": [
+                {
+                    "type": "tableHeader",
+                    "attrs": {},
+                    "content": [
+                        {
+                            "type": "paragraph",
+                            "content": [{"type": "text", "text": cell}]
+                        }
+                    ]
+                }
+                for cell in header_cells
+            ]
+        }
+        table_content.append(header_row_node)
+        
+        # Create body rows
+        for line in body_lines:
+            cells = [cell.strip() for cell in line.split('|') if cell.strip()]
+            
+            row_node = {
+                "type": "tableRow",
+                "content": [
+                    {
+                        "type": "tableCell",
+                        "attrs": {},
+                        "content": [
+                            {
+                                "type": "paragraph",
+                                "content": [{"type": "text", "text": cell}]
+                            }
+                        ]
+                    }
+                    for cell in cells
+                ]
+            }
+            table_content.append(row_node)
+        
+        return {
+            "type": "table",
+            "content": table_content
+        }
 
 
 def convert_markdown_to_tiptap(markdown: str) -> List[Dict[str, Any]]:
