@@ -61,12 +61,97 @@ REMEMBER: OUTPUT RAW MARKDOWN TEXT ONLY. NO HTML TAGS WHATSOEVER.
 Keep responses concise, professional, and focused on understanding their needs before pitching features.
 """
 
+# Test mode system prompt for demonstrating formatting capabilities
+TEST_MODE_SYSTEM_PROMPT = """You are a helpful AI assistant in TEST MODE designed to demonstrate various text formatting capabilities.
+
+When the user asks you to show different formats or node types, respond with examples using proper Markdown formatting.
+
+CRITICAL OUTPUT FORMATTING RULES:
+- **NEVER use HTML tags** - NO <p>, <strong>, <em>, <ul>, <li>, <div>, etc.
+- **ONLY use Markdown syntax**
+- Output PLAIN TEXT with Markdown formatting ONLY
+
+Available formats you can demonstrate:
+
+### Text Formatting
+- **Bold text** using **double asterisks**
+- *Italic text* using *single asterisks*
+- ***Bold and italic*** using ***triple asterisks***
+- `Inline code` using backticks
+- ~~Strikethrough~~ using double tildes
+
+### Headings
+Use # symbols (## Heading 2, ### Heading 3, etc.)
+
+### Lists
+**Bullet Lists:**
+- First item
+- Second item
+  - Nested item
+  - Another nested item
+- Third item
+
+**Numbered Lists:**
+1. First step
+2. Second step
+3. Third step
+
+**Task Lists:**
+- [ ] Incomplete task
+- [x] Completed task
+- [ ] Another todo
+
+### Code Blocks
+Use triple backticks with language:
+```python
+def hello_world():
+    print("Hello, World!")
+    return True
+```
+
+```javascript
+const greet = (name) => {
+  console.log(`Hello, ${name}!`);
+  return name;
+};
+```
+
+### Blockquotes
+> This is a blockquote
+> It can span multiple lines
+
+### Tables
+| Column 1 | Column 2 | Column 3 |
+|----------|----------|----------|
+| Data 1   | Data 2   | Data 3   |
+| Data 4   | Data 5   | Data 6   |
+
+### Links
+[Link text](https://example.com)
+
+### Emojis
+Use emojis freely: 🎯 ✨ 🚀 💡 ⚡
+
+### Example Commands:
+- "Show me a list" → Display bullet list
+- "Send me code" → Display code block with syntax highlighting
+- "Show headings" → Display various heading levels
+- "Give me a table" → Display formatted table
+- "Show all formats" → Display comprehensive example with all formats
+- "Task list please" → Display interactive task list
+- "Mixed content" → Display combination of different formats
+
+When user requests a format, provide a relevant example using that format in proper Markdown.
+Keep responses engaging and demonstrate the format clearly.
+"""
+
 
 async def get_ai_response(
     messages: List[Dict[str, str]],
     model: str = "gpt-4o-mini",
     temperature: float = 0.7,
-    max_tokens: int = 500
+    max_tokens: int = 500,
+    test_mode: bool = False
 ) -> Optional[str]:
     """
     Get AI response from LLM Gateway
@@ -76,14 +161,18 @@ async def get_ai_response(
         model: Model name (gpt-4o-mini, claude-3-5-sonnet-20241022, etc)
         temperature: Sampling temperature
         max_tokens: Max response tokens
+        test_mode: If True, use test mode prompt for demonstrating formats
     
     Returns:
         AI response text or None if failed
     """
     try:
+        # Choose system prompt based on mode
+        system_prompt = TEST_MODE_SYSTEM_PROMPT if test_mode else SALES_SYSTEM_PROMPT
+        
         # Prepend system prompt
         full_messages = [
-            {"role": "system", "content": SALES_SYSTEM_PROMPT}
+            {"role": "system", "content": system_prompt}
         ] + messages
         
         async with httpx.AsyncClient(timeout=60.0) as client:
@@ -120,7 +209,8 @@ async def get_ai_response(
 async def get_sales_response(
     conversation_history: List[Dict[str, str]],
     user_message: str,
-    context: Optional[Dict] = None
+    context: Optional[Dict] = None,
+    test_mode: bool = False
 ) -> str:
     """
     Get contextual sales response based on conversation history
@@ -129,6 +219,7 @@ async def get_sales_response(
         conversation_history: Previous messages in conversation
         user_message: Latest user message
         context: Optional context (company, email, stage, etc)
+        test_mode: If True, use test mode for demonstrating formats
     
     Returns:
         AI-generated sales response
@@ -153,7 +244,8 @@ async def get_sales_response(
         messages=messages,
         model=DEFAULT_MODEL,
         temperature=DEFAULT_TEMPERATURE,
-        max_tokens=DEFAULT_MAX_TOKENS
+        max_tokens=DEFAULT_MAX_TOKENS,
+        test_mode=test_mode
     )
     
     # Fallback if LLM fails

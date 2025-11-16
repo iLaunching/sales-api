@@ -171,6 +171,7 @@ async def send_message(data: dict, db: AsyncSession = Depends(get_db)):
     try:
         session_id = data.get("session_id", "default")
         message_text = data.get("message", "")
+        test_mode = data.get("test_mode", False)  # Add test mode flag
         
         # Get or create conversation
         result = await db.execute(
@@ -194,7 +195,7 @@ async def send_message(data: dict, db: AsyncSession = Depends(get_db)):
             "timestamp": datetime.now().isoformat()
         })
         
-        # Get AI response from LLM Gateway
+        # Get AI response from LLM Gateway (with test mode support)
         response_text = await get_sales_response(
             conversation_history=messages,
             user_message=message_text,
@@ -203,7 +204,8 @@ async def send_message(data: dict, db: AsyncSession = Depends(get_db)):
                 "name": conversation.name,
                 "company": conversation.company,
                 "stage": conversation.current_stage
-            }
+            },
+            test_mode=test_mode
         )
         
         messages.append({
@@ -452,10 +454,14 @@ async def stream_content_websocket(websocket: WebSocket, session_id: str):
                 
                 # Get LLM response for the user's query
                 try:
-                    logger.info(f"🤖 Calling LLM with user query: {content[:100]}...")
+                    # Check if test_mode is enabled
+                    test_mode = data.get("test_mode", False)
+                    
+                    logger.info(f"🤖 Calling LLM with user query: {content[:100]}... (test_mode={test_mode})")
                     llm_response = await get_sales_response(
                         conversation_history=[],  # TODO: Track conversation history per session
-                        user_message=content
+                        user_message=content,
+                        test_mode=test_mode
                     )
                     logger.info(f"✅ LLM response received: {len(llm_response)} chars")
                 except Exception as llm_error:
