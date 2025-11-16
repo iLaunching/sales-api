@@ -38,6 +38,12 @@ class MarkdownToTiptapConverter:
         self.list_item_pattern = re.compile(r'^[\s]*[-*+]\s+(.+)$', re.MULTILINE)
         self.ordered_list_pattern = re.compile(r'^[\s]*\d+\.\s+(.+)$', re.MULTILINE)
         self.task_item_pattern = re.compile(r'^[\s]*-\s+\[([ xX])\]\s+(.+)$', re.MULTILINE)
+        self.blockquote_pattern = re.compile(r'^>\s+(.+)$', re.MULTILINE)
+        self.horizontal_rule_pattern = re.compile(r'^(\-{3,}|\*{3,}|_{3,})$', re.MULTILINE)
+        self.image_pattern = re.compile(r'!\[([^\]]*)\]\(([^\)]+)\)')
+        self.mention_pattern = re.compile(r'@(\w+)')
+        self.math_inline_pattern = re.compile(r'\$([^\$]+)\$')
+        self.math_block_pattern = re.compile(r'\$\$([^\$]+)\$\$', re.DOTALL)
         self.table_pattern = re.compile(
             r'^\|(.+)\|\s*\n\|[\s:|-]+\|\s*\n((?:\|.+\|\s*\n?)+)',
             re.MULTILINE
@@ -58,13 +64,20 @@ class MarkdownToTiptapConverter:
         
         nodes = []
         
-        # First pass: Extract code blocks, tables, and task lists, replace with placeholders
+        # First pass: Extract code blocks, tables, task lists, math blocks, and images, replace with placeholders
         code_blocks = []
         tables = []
         task_lists = []
+        images = []
+        math_blocks = []
+        blockquotes = []
+        
         text_with_placeholders = self._extract_code_blocks(text, code_blocks)
         text_with_placeholders = self._extract_tables(text_with_placeholders, tables)
         text_with_placeholders = self._extract_task_lists(text_with_placeholders, task_lists)
+        text_with_placeholders = self._extract_math_blocks(text_with_placeholders, math_blocks)
+        text_with_placeholders = self._extract_images(text_with_placeholders, images)
+        text_with_placeholders = self._extract_blockquotes(text_with_placeholders, blockquotes)
         
         # Split by double newlines OR single newlines for headings
         # This ensures each heading gets its own block
@@ -115,6 +128,29 @@ class MarkdownToTiptapConverter:
             if block.startswith('__TASKLIST_') and block.endswith('__'):
                 index = int(block.replace('__TASKLIST_', '').replace('__', ''))
                 nodes.append(task_lists[index])
+                continue
+            
+            # Check for image placeholders
+            if block.startswith('__IMAGE_') and block.endswith('__'):
+                index = int(block.replace('__IMAGE_', '').replace('__', ''))
+                nodes.append(images[index])
+                continue
+            
+            # Check for math block placeholders
+            if block.startswith('__MATH_') and block.endswith('__'):
+                index = int(block.replace('__MATH_', '').replace('__', ''))
+                nodes.append(math_blocks[index])
+                continue
+            
+            # Check for blockquote placeholders
+            if block.startswith('__BLOCKQUOTE_') and block.endswith('__'):
+                index = int(block.replace('__BLOCKQUOTE_', '').replace('__', ''))
+                nodes.append(blockquotes[index])
+                continue
+            
+            # Check for horizontal rules
+            if self.horizontal_rule_pattern.match(block):
+                nodes.append({"type": "horizontalRule"})
                 continue
             
             # Check for headings
@@ -548,6 +584,104 @@ class MarkdownToTiptapConverter:
             "type": "taskList",
             "content": content
         }
+    
+    def _extract_blockquotes(self, text: str, blockquotes: List[Dict]) -> str:
+        """
+        Extract blockquotes and replace with placeholders.
+        """
+        lines = text.split('\n')
+        result_lines = []
+        current_quote_lines = []
+        
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            match = self.blockquote_pattern.match(line)
+            
+            if match:
+                # This is a blockquote line
+                current_quote_lines.append(match.group(1).strip())
+                i += 1
+            else:
+                # Not a blockquote line
+                if current_quote_lines:
+                    # Save the accumulated blockquote
+                    quote_text = ' '.join(current_quote_lines)
+                    blockquote_node = {
+                        "type": "blockquote",
+                        "content": [
+                            {
+                                "type": "paragraph",
+                                "content": self._parse_inline_formatting(quote_text)
+                            }
+                        ]
+                    }
+                    index = len(blockquotes)
+                    blockquotes.append(blockquote_node)
+                    result_lines.append(f'__BLOCKQUOTE_{index}__')
+                    current_quote_lines = []
+                
+                result_lines.append(line)
+                i += 1
+        
+        # Handle any remaining blockquote
+        if current_quote_lines:
+            quote_text = ' '.join(current_quote_lines)
+            blockquote_node = {
+                "type": "blockquote",
+                "content": [
+                    {
+                        "type": "paragraph",
+                        "content": self._parse_inline_formatting(quote_text)
+                    }
+                ]
+            }
+            index = len(blockquotes)
+            blockquotes.append(blockquote_node)
+            result_lines.append(f'__BLOCKQUOTE_{index}__')
+        
+        return '\n'.join(result_lines)
+    
+    def _extract_images(self, text: str, images: List[Dict]) -> str:
+        """
+        Extract images and replace with placeholders.
+        """
+        def replace_image(match):
+            alt = match.group(1)
+            src = match.group(2)
+            
+            image_node = {
+                "type": "image",
+                "attrs": {
+                    "src": src,
+                    "alt": alt if alt else None,
+                    "title": None
+                }
+            }
+            index = len(images)
+            images.append(image_node)
+            return f'__IMAGE_{index}__'
+        
+        return self.image_pattern.sub(replace_image, text)
+    
+    def _extract_math_blocks(self, text: str, math_blocks: List[Dict]) -> str:
+        """
+        Extract math blocks ($$...$$) and replace with placeholders.
+        """
+        def replace_math(match):
+            content = match.group(1).strip()
+            
+            math_node = {
+                "type": "mathematics",
+                "attrs": {
+                    "latex": content
+                }
+            }
+            index = len(math_blocks)
+            math_blocks.append(math_node)
+            return f'__MATH_{index}__'
+        
+        return self.math_block_pattern.sub(replace_math, text)
 
 
 def convert_markdown_to_tiptap(markdown: str) -> List[Dict[str, Any]]:
