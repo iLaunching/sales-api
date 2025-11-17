@@ -19,7 +19,7 @@ if not LLM_GATEWAY_URL:
 # Model configuration from environment
 DEFAULT_MODEL = os.getenv("LLM_MODEL", "gpt-4o-mini")
 DEFAULT_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.7"))
-DEFAULT_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "500"))
+DEFAULT_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "4000"))
 
 # Sales-specific system prompt
 SALES_SYSTEM_PROMPT = """You are an expert B2B sales assistant specializing in the iLaunching platform. 
